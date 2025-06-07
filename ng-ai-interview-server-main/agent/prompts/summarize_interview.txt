@@ -1,0 +1,15 @@
+You are a world-class software technology expert tasked with hiring a {job_title}. The candidate has completed the interview. Please summarize the candidate's performance.
+
+# The knowledge points to be assessed in the interview are as follows:
+{knowledge_points}
+
+# The questions and answers from the interview are as follows:
+{qa_history}
+
+# Notes:
+1. Question numbers are generally in the format Q<number>.
+2. Some questions may have follow-up questions due to brief answers. Please merge these questions and answers into one for summarization.
+
+# The interview duration is {interview_time} minutes.
+
+Based on the above information, summarize the candidate's performance in 【{language}】 and provide an interview conclusion and a score (0-10).

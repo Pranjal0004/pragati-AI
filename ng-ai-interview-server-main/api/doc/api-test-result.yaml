@@ -1,0 +1,257 @@
+openapi: 3.0.0
+info:
+  title: Test Result API
+  description: API for creating and querying test results
+  version: 1.0.0
+tags:
+  - name: test_result
+    description: Operations related to test results
+
+paths:
+  /test_result:
+    post:
+      summary: Create Test Result
+      description: Create or update a test result
+      operationId: createTestResult
+      tags:
+        - test_result
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTestResultRequest'
+      responses:
+        '200':
+          description: Successfully created test result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestResultResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /test_result/test/{test_id}:
+    get:
+      summary: Get Test Result by Test ID
+      description: Query a single test result by test ID
+      operationId: getTestResultByTestId
+      tags:
+        - test_result
+      parameters:
+        - name: test_id
+          in: path
+          description: Test ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully retrieved test result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestResultResponse'
+        '404':
+          description: Test result not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+                
+  /test_result/user/{user_id}:
+    get:
+      summary: Get Test Results by User ID
+      description: Query all test results for a user by user ID
+      operationId: getTestResultsByUserId
+      tags:
+        - test_result
+      parameters:
+        - name: user_id
+          in: path
+          description: User ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully retrieved user test results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                    example: "0"
+                  message:
+                    type: string
+                    example: "success"
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TestResultResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    CreateTestResultRequest:
+      type: object
+      required:
+        - test_id
+        - user_id
+      properties:
+        test_id:
+          type: string
+          description: Test ID
+        user_id:
+          type: string
+          description: User ID
+        summary:
+          type: string
+          description: Test summary
+        score:
+          type: integer
+          description: Test score (0-100)
+          minimum: 0
+          maximum: 100
+        question_number:
+          type: integer
+          description: Number of questions
+          minimum: 0
+        correct_number:
+          type: integer
+          description: Number of correct answers
+          minimum: 0
+        elapse_time:
+          type: number
+          format: float
+          description: Test duration (minutes)
+        qa_history:
+          type: array
+          description: QA history, including three string fields: question, answer, summary
+          items:
+            type: object
+    
+    UpdateTestResultRequest:
+      type: object
+      properties:
+        summary:
+          type: string
+          description: Test summary
+        score:
+          type: integer
+          description: Test score (0-100)
+          minimum: 0
+          maximum: 100
+        question_number:
+          type: integer
+          description: Number of questions
+          minimum: 0
+        correct_number:
+          type: integer
+          description: Number of correct answers
+          minimum: 0
+        elapse_time:
+          type: number
+          format: float
+          description: Test duration (minutes)
+        qa_history:
+          type: array
+          description: QA history
+          items:
+            type: object
+    
+    TestResultResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Test result ID
+        test_id:
+          type: string
+          description: Test ID
+        user_id:
+          type: string
+          description: User ID
+        summary:
+          type: string
+          description: Test summary
+        score:
+          type: integer
+          description: Test score (0-100)
+        question_number:
+          type: integer
+          description: Number of questions
+        correct_number:
+          type: integer
+          description: Number of correct answers
+        elapse_time:
+          type: number
+          format: float
+          description: Test duration (minutes)
+        qa_history:
+          type: array
+          description: QA history
+          items:
+            type: object
+            properties:
+              question:
+                type: string
+                description: Question
+              answer:
+                type: string
+                description: Answer
+              summary:
+                type: string
+                description: Summary
+        created_at:
+          type: string
+          format: date-time
+          description: Creation time
+        updated_at:
+          type: string
+          format: date-time
+          description: Update time
+          
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Error code
+          example: "404"
+        message:
+          type: string
+          description: Error message
+          example: "Test result not found"
+        data:
+          type: null
+          description: Data (null in case of error) 

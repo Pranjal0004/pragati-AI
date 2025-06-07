@@ -1,0 +1,15 @@
+# Run the API server
+
+# source venv/bin/activate => activate the virtual environment
+# pip install -r requirements.txt => install the required packages if not installed.
+# uvicorn api.main:app --reload => run the API server
+# http://127.0.0.1:8000/api/v1/doc => open the API documentation
+
+
+
+
+
+# How to run in terminal 
+
+# export OPENAI_API_KEY="Open-AI-API-Key-here-in-quotes" => run this command in the terminal to set the OpenAI API key
+# python3 agent/run_agent.py => run the agent

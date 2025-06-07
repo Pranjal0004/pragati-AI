@@ -1,0 +1,297 @@
+openapi: 3.0.0
+info:
+  title: AI Interview Job API
+  description: AI Interview Platform Job API
+  version: 1.0.0
+  
+servers:
+  - url: /api/v1
+    description: API v1
+
+components:
+  schemas:
+    # Base response model
+    BaseResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Response code
+        message:
+          type: string
+          description: Response message
+        data:
+          type: object
+          description: Response data
+      required:
+        - code
+        - message
+        - data
+    
+    # Job-related models
+    JobBase:
+      type: object
+      properties:
+        job_title:
+          type: string
+          description: Job title
+        job_description:
+          type: string
+          description: Job description
+        technical_skills:
+          type: array
+          items:
+            type: string
+          description: Required technical skills
+        soft_skills:
+          type: array
+          items:
+            type: string
+          description: Required soft skills
+      required:
+        - job_title
+        - job_description
+    
+    CreateJobRequest:
+      allOf:
+        - $ref: '#/components/schemas/JobBase'
+    
+    UpdateJobRequest:
+      type: object
+      properties:
+        job_title:
+          type: string
+          description: Job title
+        job_description:
+          type: string
+          description: Job description
+        technical_skills:
+          type: array
+          items:
+            type: string
+          description: Required technical skills
+        soft_skills:
+          type: array
+          items:
+            type: string
+          description: Required soft skills
+    
+    JobResponse:
+      allOf:
+        - $ref: '#/components/schemas/JobBase'
+        - type: object
+          properties:
+            job_id:
+              type: string
+              description: Job ID
+            create_date:
+              type: string
+              format: date-time
+              description: Creation date
+          required:
+            - job_id
+            - create_date
+
+paths:
+  /job:
+    post:
+      summary: Create job
+      description: Create a new job
+      tags:
+        - Job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateJobRequest'
+      responses:
+        '200':
+          description: Successfully created job
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/JobResponse'
+        '400':
+          description: Invalid request parameters
+        '500':
+          description: Internal server error
+    
+    get:
+      summary: Get job list
+      description: Retrieve a list of all jobs
+      tags:
+        - Job
+      parameters:
+        - name: skip
+          in: query
+          description: Number of records to skip
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: limit
+          in: query
+          description: Maximum number of records to return
+          required: false
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: Successfully retrieved job list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/JobResponse'
+        '500':
+          description: Internal server error
+  
+  /job/{job_id}:
+    get:
+      summary: Get job details
+      description: Retrieve job details by ID
+      tags:
+        - Job
+      parameters:
+        - name: job_id
+          in: path
+          description: Job ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully retrieved job details
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/JobResponse'
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      code:
+                        type: string
+                        example: "404"
+                      message:
+                        type: string
+                        example: "Job not found"
+        '500':
+          description: Internal server error
+    
+    put:
+      summary: Update job
+      description: Update job by ID
+      tags:
+        - Job
+      parameters:
+        - name: job_id
+          in: path
+          description: Job ID
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateJobRequest'
+      responses:
+        '200':
+          description: Successfully updated job
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/JobResponse'
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      code:
+                        type: string
+                        example: "404"
+                      message:
+                        type: string
+                        example: "Job not found"
+        '500':
+          description: Internal server error
+    
+    delete:
+      summary: Delete job
+      description: Delete job by ID
+      tags:
+        - Job
+      parameters:
+        - name: job_id
+          in: path
+          description: Job ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully deleted job
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          deleted:
+                            type: boolean
+                            description: Whether the job was successfully deleted
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      code:
+                        type: string
+                        example: "404"
+                      message:
+                        type: string
+                        example: "Job not found"
+        '500':
+          description: Internal server error 

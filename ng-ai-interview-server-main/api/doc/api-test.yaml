@@ -1,0 +1,456 @@
+openapi: 3.0.0
+info:
+  title: AI Interview API
+  description: AI Interview Platform API
+  version: 1.0.0
+  
+servers:
+  - url: /api/v1
+    description: API v1
+
+components:
+  schemas:
+    # Base response model
+    BaseResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Response code
+        message:
+          type: string
+          description: Response message
+        data:
+          type: object
+          description: Response data
+      required:
+        - code
+        - message
+        - data
+    
+    # Test-related models
+    TestBase:
+      type: object
+      properties:
+        type:
+          type: string
+          description: Test type
+          enum: [coding, interview, knowledge]
+        language:
+          type: string
+          description: Language
+          enum: [Chinese, English]
+        difficulty:
+          type: string
+          description: Difficulty
+          enum: [easy, medium, hard]
+      required:
+        - type
+        - language
+        - difficulty
+    
+    CreateTestRequest:
+      allOf:
+        - $ref: '#/components/schemas/TestBase'
+        - type: object
+          properties:
+            job_id:
+              type: string
+              description: Associated job ID
+            user_id:
+              type: string
+              description: Associated user ID
+            examination_points:
+              type: array
+              items:
+                type: string
+              description: List of examination points
+            test_time:
+              type: integer
+              description: Test time (minutes)
+              minimum: 1
+              maximum: 120
+    
+    UpdateTestRequest:
+      type: object
+      properties:
+        type:
+          type: string
+          description: Test type
+          enum: [coding, interview, knowledge]
+        language:
+          type: string
+          description: Language
+          enum: [Chinese, English]
+        difficulty:
+          type: string
+          description: Difficulty
+          enum: [easy, medium, hard]
+        status:
+          type: string
+          description: Test status
+          enum: [open, in_progress, completed, expired, cancelled]
+        job_id:
+          type: string
+          description: Associated job ID
+        user_id:
+          type: string
+          description: Associated user ID
+        examination_points:
+          type: array
+          items:
+            type: string
+          description: List of examination points
+        test_time:
+          type: integer
+          description: Test time (minutes)
+          minimum: 1
+          maximum: 120
+    
+    TestResponse:
+      allOf:
+        - $ref: '#/components/schemas/TestBase'
+        - type: object
+          properties:
+            test_id:
+              type: string
+              description: Test ID
+            activate_code:
+              type: string
+              description: Test activation code
+            status:
+              type: string
+              description: Test status
+              enum: [open, in_progress, completed, expired, cancelled]
+            job_id:
+              type: string
+              description: Associated job ID
+            job_title:
+              type: string
+              description: Associated job title
+            user_id:
+              type: string
+              description: Associated user ID
+            user_name:
+              type: string
+              description: Associated user name
+            question_ids:
+              type: array
+              items:
+                type: string
+              description: List of question IDs included in the test
+            examination_points:
+              type: array
+              items:
+                type: string
+              description: List of examination points
+            test_time:
+              type: integer
+              description: Test time (minutes)
+            create_date:
+              type: string
+              format: date-time
+              description: Creation time
+            start_date:
+              type: string
+              format: date-time
+              description: Start time
+            expire_date:
+              type: string
+              format: date-time
+              description: Expiration time
+            update_date:
+              type: string
+              format: date-time
+              description: Update time
+          required:
+            - test_id
+            - activate_code
+            - status
+            - test_time
+            - create_date
+            - start_date
+            - expire_date
+
+paths:
+  /test:
+    post:
+      summary: Create test
+      description: Create a new test
+      tags:
+        - Test
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTestRequest'
+      responses:
+        '200':
+          description: Successfully created test
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TestResponse'
+        '400':
+          description: Invalid request parameters
+        '500':
+          description: Internal server error
+    
+    get:
+      summary: Get test list
+      description: Retrieve a list of all tests
+      tags:
+        - Test
+      parameters:
+        - name: skip
+          in: query
+          description: Number of records to skip
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: limit
+          in: query
+          description: Maximum number of records to return
+          required: false
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: Successfully retrieved test list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/TestResponse'
+        '500':
+          description: Internal server error
+  
+  /test/{test_id}:
+    get:
+      summary: Get test details
+      description: Retrieve test details by ID
+      tags:
+        - Test
+      parameters:
+        - name: test_id
+          in: path
+          description: Test ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully retrieved test details
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TestResponse'
+        '404':
+          description: Test not found
+        '500':
+          description: Internal server error
+    
+    put:
+      summary: Update test
+      description: Update test by ID
+      tags:
+        - Test
+      parameters:
+        - name: test_id
+          in: path
+          description: Test ID
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTestRequest'
+      responses:
+        '200':
+          description: Successfully updated test
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TestResponse'
+        '404':
+          description: Test not found
+        '500':
+          description: Internal server error
+    
+    delete:
+      summary: Delete test
+      description: Delete test by ID
+      tags:
+        - Test
+      parameters:
+        - name: test_id
+          in: path
+          description: Test ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully deleted test
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          deleted:
+                            type: boolean
+                            description: Whether the test was successfully deleted
+        '404':
+          description: Test not found
+        '500':
+          description: Internal server error
+  
+  /test/user/{user_id}:
+    get:
+      summary: Get user's test list
+      description: Retrieve a list of tests by user ID
+      tags:
+        - Test
+      parameters:
+        - name: user_id
+          in: path
+          description: User ID
+          required: true
+          schema:
+            type: string
+        - name: skip
+          in: query
+          description: Number of records to skip
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: limit
+          in: query
+          description: Maximum number of records to return
+          required: false
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: Successfully retrieved test list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/TestResponse'
+        '500':
+          description: Internal server error
+  
+  /test/job/{job_id}:
+    get:
+      summary: Get job's test list
+      description: Retrieve a list of tests by job ID
+      tags:
+        - Test
+      parameters:
+        - name: job_id
+          in: path
+          description: Job ID
+          required: true
+          schema:
+            type: string
+        - name: skip
+          in: query
+          description: Number of records to skip
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: limit
+          in: query
+          description: Maximum number of records to return
+          required: false
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: Successfully retrieved test list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/TestResponse'
+        '500':
+          description: Internal server error
+  
+  /test/activate/{activate_code}:
+    get:
+      summary: Get test by activation code
+      description: Retrieve test details by activation code
+      tags:
+        - Test
+      parameters:
+        - name: activate_code
+          in: path
+          description: Test activation code
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully retrieved test details
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/TestResponse'
+        '404':
+          description: Test not found
+        '500':
+          description: Internal server error 

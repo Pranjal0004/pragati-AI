@@ -1,0 +1,358 @@
+openapi: 3.0.0
+info:
+  title: AI Interview Question API
+  description: AI Interview Platform Question API
+  version: 1.0.0
+  
+servers:
+  - url: /api/v1
+    description: API v1
+
+components:
+  schemas:
+    # Base response model
+    BaseResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Response code
+        message:
+          type: string
+          description: Response message
+        data:
+          type: object
+          description: Response data
+      required:
+        - code
+        - message
+        - data
+    
+    # Question-related model
+    QuestionBase:
+      type: object
+      properties:
+        question:
+          type: string
+          description: Question content
+        answer:
+          type: string
+          description: Reference answer
+        examination_points:
+          type: array
+          items:
+            type: string
+          description: Examination points
+        job_title:
+          type: string
+          description: Related job title
+        language:
+          type: string
+          description: Language
+          enum: [Chinese, English]
+        difficulty:
+          type: string
+          description: Difficulty
+          enum: [easy, medium, hard]
+        type:
+          type: string
+          description: Question type
+          enum: [multiple_choice, single_choice, true_false, short_answer, essay]
+      required:
+        - question
+        - answer
+        - difficulty
+        - type
+    
+    CreateQuestionRequest:
+      allOf:
+        - $ref: '#/components/schemas/QuestionBase'
+    
+    UpdateQuestionRequest:
+      type: object
+      properties:
+        question:
+          type: string
+          description: Question content
+        answer:
+          type: string
+          description: Reference answer
+        examination_points:
+          type: array
+          items:
+            type: string
+          description: Examination points
+        job_title:
+          type: string
+          description: Related job title
+        language:
+          type: string
+          description: Language
+          enum: [Chinese, English]
+        difficulty:
+          type: string
+          description: Difficulty
+          enum: [easy, medium, hard]
+        type:
+          type: string
+          description: Question type
+          enum: [multiple_choice, single_choice, true_false, short_answer, essay]
+    
+    QuestionResponse:
+      allOf:
+        - $ref: '#/components/schemas/QuestionBase'
+        - type: object
+          properties:
+            question_id:
+              type: string
+              description: Question ID
+          required:
+            - question_id
+
+paths:
+  /question:
+    post:
+      summary: Create question
+      description: Create a new question
+      tags:
+        - Question
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateQuestionRequest'
+      responses:
+        '200':
+          description: Successfully created question
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/QuestionResponse'
+        '400':
+          description: Invalid request parameters
+        '500':
+          description: Internal server error
+    
+    get:
+      summary: Get question list
+      description: Retrieve a list of all questions
+      tags:
+        - Question
+      parameters:
+        - name: skip
+          in: query
+          description: Number of records to skip
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: limit
+          in: query
+          description: Maximum number of records to return
+          required: false
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: Successfully retrieved question list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/QuestionResponse'
+        '500':
+          description: Internal server error
+  
+  /question/{question_id}:
+    get:
+      summary: Get question details
+      description: Retrieve question details by ID
+      tags:
+        - Question
+      parameters:
+        - name: question_id
+          in: path
+          description: Question ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully retrieved question details
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/QuestionResponse'
+        '404':
+          description: Question not found
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      code:
+                        type: string
+                        example: "404"
+                      message:
+                        type: string
+                        example: "Question not found"
+        '500':
+          description: Internal server error
+    
+    put:
+      summary: Update question
+      description: Update question by ID
+      tags:
+        - Question
+      parameters:
+        - name: question_id
+          in: path
+          description: Question ID
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateQuestionRequest'
+      responses:
+        '200':
+          description: Successfully updated question
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/QuestionResponse'
+        '404':
+          description: Question not found
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      code:
+                        type: string
+                        example: "404"
+                      message:
+                        type: string
+                        example: "Question not found"
+        '500':
+          description: Internal server error
+    
+    delete:
+      summary: Delete question
+      description: Delete question by ID
+      tags:
+        - Question
+      parameters:
+        - name: question_id
+          in: path
+          description: Question ID
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successfully deleted question
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          deleted:
+                            type: boolean
+                            description: Whether the question was successfully deleted
+        '404':
+          description: Question not found
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      code:
+                        type: string
+                        example: "404"
+                      message:
+                        type: string
+                        example: "Question not found"
+        '500':
+          description: Internal server error
+  
+  /question/search:
+    get:
+      summary: Search questions
+      description: Search questions by keyword
+      tags:
+        - Question
+      parameters:
+        - name: keyword
+          in: query
+          description: Search keyword
+          required: true
+          schema:
+            type: string
+        - name: skip
+          in: query
+          description: Number of records to skip
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: limit
+          in: query
+          description: Maximum number of records to return
+          required: false
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Successfully searched questions
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/BaseResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/QuestionResponse'
+        '500':
+          description: Internal server error 

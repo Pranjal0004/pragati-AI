@@ -1,0 +1,6 @@
+mkdir -p api/{doc,middleware,router,service,model,conf,utils,logs}
+mkdir -p api/model/api
+mkdir -p tests/api
+touch api/__init__.py
+touch api/main.py
+touch tests/api/__init__.py 
