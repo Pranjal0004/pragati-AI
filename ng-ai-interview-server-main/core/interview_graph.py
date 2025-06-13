@@ -56,14 +56,20 @@ def ask_question(state):
 
     import json
     try:
-        json_str = raw_output[raw_output.index("{"): raw_output.rindex("}") + 1]
-        parsed = json.loads(json_str)
+        # json_str = raw_output[raw_output.index("{"): raw_output.rindex("}") + 1]
+        # parsed = json.loads(json_str)
+        if isinstance(raw_output, str): #remove this
+            parsed = json.loads(raw_output)
+        else:
+            parsed = raw_output  
 
         acknowledgement = parsed.get("acknowledgement", acknowledgement)
         question_text = parsed.get("question", question_text)
         mins = parsed.get("estimatedTime", {}).get("minutes", 0)
         secs = parsed.get("estimatedTime", {}).get("seconds", 0)
-        estimated_time = mins * 60 + secs or 10
+        estimated_time = mins * 60 + secs
+        if estimated_time == 0:
+            estimated_time = 10
 
     except Exception as e:
         print("Parse error:", e)
@@ -94,9 +100,11 @@ def return_question(state):
     question_payload = state.get("questionPayload", {
         "question": state.get("currentQuestion", "No question"),
         "acknowledgement": "Let's continue.",
-        "estimatedTime": state.get("estimatedTime", 60),
-        "questionNumber": state.get("currentQuestionNumber", 1)
+        "questionNumber": state.get("currentQuestionNumber", 1),
+        # "estimatedTime": state.get("estimatedTime", 60),
+        "estimatedTime": 10,
     })
+    question_payload["estimatedTime"] = 10      #remove this line
 
     if not question_payload:
         print("Missing questionPayload in state!")
@@ -140,16 +148,28 @@ def submit_answer(state):
 
 
 def handle_timeout(state):
+    partial_answer = state["answers"][-1] if state["answers"] else "[No answer - timeout]"
+
     decision = TimeoutDecisionChain.run(
         question=state["currentQuestion"],
-        partial_answer=state["answers"][-1],
+        partial_answer=partial_answer,
         history=state["history"]
     )
+    print("Decision:", decision)
     return {**state, "next": decision}
 
 
 def give_hint(state):
-    hint = HintChain.run(state["currentQuestion"])
+    question = state.get("currentQuestion")
+    print("🧠 Generating hint for:", question)
+    
+    try:
+        hint = HintChain.run(question)
+        print("✅ Hint generated:", hint)
+    except Exception as e:
+        print("❌ Error generating hint:", e)
+        hint = "Sorry, no hint available at the moment."
+
     return {
         **state,
         "hint": hint,
@@ -161,7 +181,7 @@ def return_hint(state):
 
     return {
         **state,
-        "next": None,  # Indicates waiting for external input
+        "next": None, 
         "action": "await_hint_acknowledgement",
         "hint": state.get("hint", "No hint available.")
     }
@@ -225,7 +245,8 @@ def end_interview(state):
                     "question": "Interview is complete. Thank you!",
                     "acknowledgement": "✅ Interview complete.",
                     "questionNumber": -1,
-                    "isComplete": True  # <-- optional flag for frontend
+                    "isComplete": True, 
+                    "feedback": feedback,
                 }
             )
             print("✅ Interview end sent to frontend:", response.status_code, response.text)

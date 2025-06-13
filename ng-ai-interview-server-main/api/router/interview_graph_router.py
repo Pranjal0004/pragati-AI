@@ -79,3 +79,31 @@ async def submit_answer(request: Request):
             status_code=500,
             content={"error": "Failed to submit answer", "details": str(e)}
         )
+
+
+@router.post("/handle-timeout")
+async def handle_timeout(request: Request):
+    try:
+        data = await request.json()
+        session_id = data.get("sessionId")
+
+        if not session_id:
+            return JSONResponse(status_code=400, content={"error": "Missing sessionId"})
+
+        state = session_store.get(session_id)
+        if not state:
+            return JSONResponse(status_code=404, content={"error": "Session not found"})
+
+        state["next"] = "handle_timeout"
+        # print("📦 Timeout state before invoke:", state)
+        result = interview_graph.invoke(state)
+        session_store[session_id] = result
+
+        return JSONResponse({
+            "code": 200,
+            "message": "Timeout handled successfully",
+            "data": result
+        })
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})

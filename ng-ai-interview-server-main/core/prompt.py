@@ -1,24 +1,50 @@
 from langchain.prompts import PromptTemplate
 
 # Question Prompt
+# question_prompt = PromptTemplate(
+#     input_variables=["role", "level"],
+#     template="""
+#         You are an AI interviewer. Ask a technical question for a {role} role at {level} level. 
+#         The question must:
+#         - Be appropriate for the {level} level.
+#         - Increase in complexity, depth, and real-world application as the level goes from entry to senior.
+#         - Be specific to the practical responsibilities typically expected at that level.
+
+#         Respond strictly in the following JSON format (with proper double quotes and valid JSON):
+#         {{
+#             "acknowledgement": "<short message to start the interview or appreciate previous answer>",
+#             "question": "<Your question here>",
+#             "estimatedTime": {{
+#                 "minutes": <number of minutes>,
+#                 "seconds": <number of seconds>
+#             }}  
+#         }}
+#     """
+# )
+
 question_prompt = PromptTemplate(
     input_variables=["role", "level"],
     template="""
-        You are an AI interviewer. Ask a technical question for a {role} role at {level} level. 
-        The question must:
-        - Be appropriate for the {level} level.
-        - Increase in complexity, depth, and real-world application as the level goes from entry to senior.
-        - Be specific to the practical responsibilities typically expected at that level.
+        You are an AI interviewer. Your task is to ask ONE technical interview question for the role of {role} at the {level} level.
 
-        Respond strictly in the following JSON format (with proper double quotes and valid JSON):
+        Guidelines:
+        - Make the question strictly relevant to the {level} level responsibilities.
+        - Only one question should be generated.
+        - DO NOT generate questions for other levels.
+        - The response MUST be a single valid JSON object and nothing else — no explanation, no extra text.
+
+        Return strictly in this exact JSON format (with proper double quotes and valid syntax):
+
         {{
-        "acknowledgement": "<short message to start the interview or appreciate previous answer>",
+        "acknowledgement": "<Short transition line or appreciation>",
         "question": "<Your question here>",
-        "estimatedTime": {{
-            "minutes": <number of minutes>,
-            "seconds": <number of seconds>
-        }}  
+            "estimatedTime": {{
+                "minutes": <number>,
+                "seconds": <number>
+            }}
         }}
+
+        Do not include any extra text, explanation, or multiple JSON objects.
     """
 )
 
