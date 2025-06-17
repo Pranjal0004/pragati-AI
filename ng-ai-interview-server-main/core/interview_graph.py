@@ -44,10 +44,17 @@ def ask_question(state):
     total_elapsed = int((current_time() - state["startTime"]) / 60)
     q_no = state["currentQuestionNumber"]
 
+    prev_question = state["questions"][-1]["question"] if state["questions"] else ""
+    prev_answer = state["answers"][q_no - 2] if q_no > 1 and len(state["answers"]) >= q_no - 1 else ""
+    print("Prev question", prev_question)
+    print("Prev answers", prev_answer)
+
     raw_output = QuestionChain.run(
         role=state["role"],
         level=state["level"],
-        questions=state["questions"]
+        questions=state["questions"],
+        previous_question=prev_question,
+        previous_answer=prev_answer
     )
 
     acknowledgement = "Let's continue."
@@ -56,12 +63,8 @@ def ask_question(state):
 
     import json
     try:
-        # json_str = raw_output[raw_output.index("{"): raw_output.rindex("}") + 1]
-        # parsed = json.loads(json_str)
-        if isinstance(raw_output, str): #remove this
-            parsed = json.loads(raw_output)
-        else:
-            parsed = raw_output  
+        json_str = raw_output[raw_output.index("{"): raw_output.rindex("}") + 1]
+        parsed = json.loads(json_str)
 
         acknowledgement = parsed.get("acknowledgement", acknowledgement)
         question_text = parsed.get("question", question_text)
@@ -124,7 +127,6 @@ def return_question(state):
     return {
         **state,
         "next": None,
-        "action": "await_user_answer",
         "questionPayload": question_payload 
     }
 
@@ -144,19 +146,21 @@ def submit_answer(state):
         "history": updated_history,
         "currentQuestionNumber": state["currentQuestionNumber"] + 1,
         "next": next_node,
+        "hint": None
     }
 
 
 def handle_timeout(state):
-    partial_answer = state["answers"][-1] if state["answers"] else "[No answer - timeout]"
+    partial_answer = state.get("latestAnswer")
 
     decision = TimeoutDecisionChain.run(
         question=state["currentQuestion"],
         partial_answer=partial_answer,
         history=state["history"]
     )
+    # decision = "continue_answering"
     print("Decision:", decision)
-    return {**state, "next": decision}
+    return {**state, "next": decision, "decision": decision}
 
 
 def give_hint(state):
@@ -173,61 +177,22 @@ def give_hint(state):
     return {
         **state,
         "hint": hint,
-        "next": "return_hint"
-    }
-
-
-def return_hint(state):
-
-    return {
-        **state,
-        "next": None, 
-        "action": "await_hint_acknowledgement",
-        "hint": state.get("hint", "No hint available.")
+        "next": None,
     }
 
 
 def continue_answering(state):
-    extra_answer = state.get("latestAnswer") or ""
-    combined_answer = f"{state['answers'][-1]} {extra_answer}".strip()
-
-    updated_answers = state["answers"][:-1] + [combined_answer]
-    updated_history = state["history"][:-1] + [
-        {"question": state["currentQuestion"], "answer": combined_answer}
-    ]
-
-    next_node = "end_interview" if is_time_up(state) else "ask_question"
-
     return {
-        **state,
-        "answers": updated_answers,
-        "history": updated_history,
-        "next": next_node,
-    }
-
-    extra_answer = state.get("latestAnswer") or ""
-    combined_answer = f"{state['answers'][-1]} {extra_answer}".strip()
-
-    updated_answers = state["answers"][:-1] + [combined_answer]
-    updated_history = state["history"][:-1] + [
-        {"question": state["currentQuestion"], "answer": combined_answer}
-    ]
-
-    if (current_time() - state["startTime"]) / 60 >= state["duration_minutes"]:
-        next_node = "end_interview"
-    else:
-        next_node = "ask_question"
-
-    return {
-        **state,
-        "answers": updated_answers,
-        "history": updated_history,
-        "next": next_node,
+        **state, 
+        "next": None, 
     }
 
 
-def skip_answer(state):
-    return {**state, "next": "end_interview" if is_time_up(state) else "ask_question"}
+def stop_answering(state):
+    return {
+        **state,
+        "next": None,
+    }
 
 
 def end_interview(state):
@@ -276,6 +241,7 @@ class InterviewGraphState(TypedDict, total=False):
     hint: str
     feedback: str
     questionPayload: Dict[str, str]
+    decision: str
 
 
 def create_interview_graph():
@@ -287,9 +253,8 @@ def create_interview_graph():
     g.add_node("submit_answer", submit_answer)
     g.add_node("handle_timeout", handle_timeout)
     g.add_node("give_hint", give_hint)
-    g.add_node("return_hint", return_hint)
     g.add_node("continue_answering", continue_answering)
-    g.add_node("skip_answer", skip_answer)
+    g.add_node("stop_answering", stop_answering)
     g.add_node("end_interview", end_interview)
 
     g.add_conditional_edges(START, lambda state: state.get("next") or "start_interview")
@@ -298,10 +263,9 @@ def create_interview_graph():
     g.add_edge("return_question", END)
     g.add_conditional_edges("submit_answer", lambda state: state["next"])
     g.add_conditional_edges("handle_timeout", lambda state: state["next"])
-    g.add_edge("give_hint", "return_hint")
-    g.add_conditional_edges("return_hint", lambda state: state["next"])
-    g.add_conditional_edges("continue_answering", lambda state: state["next"])
-    g.add_conditional_edges("skip_answer", lambda state: state["next"])
+    g.add_edge("give_hint", END)
+    g.add_edge("continue_answering", END)
+    g.add_edge("stop_answering", END)
     g.add_edge("end_interview", END)
 
     return g.compile()

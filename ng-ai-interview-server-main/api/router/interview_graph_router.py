@@ -86,6 +86,7 @@ async def handle_timeout(request: Request):
     try:
         data = await request.json()
         session_id = data.get("sessionId")
+        partial_answer = data.get("partialAnswer")
 
         if not session_id:
             return JSONResponse(status_code=400, content={"error": "Missing sessionId"})
@@ -94,6 +95,7 @@ async def handle_timeout(request: Request):
         if not state:
             return JSONResponse(status_code=404, content={"error": "Session not found"})
 
+        state["latestAnswer"] = partial_answer or "[No answer - timeout]"
         state["next"] = "handle_timeout"
         # print("📦 Timeout state before invoke:", state)
         result = interview_graph.invoke(state)
@@ -107,3 +109,32 @@ async def handle_timeout(request: Request):
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+    
+@router.post("/end-interview")
+async def end_interview_route(request: Request):
+    try:
+        data = await request.json()
+        session_id = data.get("sessionId")
+
+        if not session_id:
+            return JSONResponse(status_code=400, content={"error": "Missing sessionId"})
+
+        state = session_store.get(session_id)
+        if not state:
+            return JSONResponse(status_code=404, content={"error": "Session not found"})
+
+        state["next"] = "end_interview"
+        result = interview_graph.invoke(state)
+        session_store[session_id] = result
+
+        return JSONResponse({
+            "code": 200,
+            "message": "Interview ended successfully",
+            "data": result
+        })
+
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+

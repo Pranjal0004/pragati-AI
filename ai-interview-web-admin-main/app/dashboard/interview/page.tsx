@@ -17,14 +17,13 @@ export default function InterviewPage() {
   const [interviewTimer, setInterviewTimer] = useState(0);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [estimatedTime, setEstimatedTime] = useState(60);
-  const [hint, setHint] = useState<string | null>(null);
-  const [awaitingHintAck, setAwaitingHintAck] = useState(false);
   const [timeoutTriggered, setTimeoutTriggered] = useState(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const interviewTimerRef = useRef<NodeJS.Timeout | null>(null);
   const timeoutTriggerRef = useRef(false);
   const lastTimerQuestionRef = useRef<string | null>(null);
+  const answerRef = useRef('');
 
   const startTimer = (seconds: number, questionId: string) => {
     // Prevent resetting the timer for the same question
@@ -64,13 +63,7 @@ export default function InterviewPage() {
   };  
 
   const handleNewPayload = (payload: any, feedbackMsg?: string) => {
-    const { question, acknowledgement, questionNumber, isComplete, estimatedTime: newTime, action, hint: hintText } = payload;
-  
-    if (action === "await_hint_acknowledgement" && hintText) {
-      setHint(hintText);
-      setAwaitingHintAck(true);
-      return; 
-    }
+    const { question, acknowledgement, questionNumber, isComplete, estimatedTime: newTime } = payload;
   
     if (question && question !== lastReceived) {
       const aiMessage = `AI: ${acknowledgement} Q${questionNumber}: ${question}`;
@@ -80,7 +73,7 @@ export default function InterviewPage() {
       setLastReceived(question);
       setTimeoutTriggered(false);
       startTimer(newTime || 60, `${question}-${questionNumber}`);
-    }    
+    }   
   
     if (isComplete) {
       setInterviewComplete(true);
@@ -90,34 +83,41 @@ export default function InterviewPage() {
   };  
 
   const triggerTimeout = async () => {
-    console.log(("Inside trigger timeout"));
-    
     if (timeoutTriggerRef.current) return; // prevent multiple calls
     timeoutTriggerRef.current = true; // mark as triggered
-    setTimeoutTriggered(true); // UI-related state
-    
+    setTimeoutTriggered(true);
+  
     try {
       const res = await fetch(`${backendUrl}/api/v1/interview-graph/handle-timeout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId }),
+        body: JSON.stringify({ 
+          sessionId,
+          partialAnswer: answerRef.current?.trim()
+        }),
       });
+      
       console.log('⏳ Timeout triggered');
-      const data = await res.json();
-      const payload = data?.new_state?.questionPayload;
+      const result = await res.json();
+      const data = result?.data;
   
-      if (payload) {
-        handleNewPayload(payload, data.feedback);
-      } else {
-        setMessages(prev => [...prev, '✅ Interview complete.']);
-        setInterviewComplete(true);
-        stopInterviewTimer();
-        if (data.feedback) setFeedback(data.feedback);
+      if (data?.hint) {
+        setMessages(prev => [...prev, `💡 Hint: ${data.hint}`]);
       }
+
+      message.info({
+        content: `🤖 AI made a decision: ${data.decision}`,
+        duration: 4,
+      });
+      
+      if (data?.decision === 'stop_answering') {
+        await sendAnswer(answerRef.current);
+      }
+  
     } catch (err) {
       console.error('Failed to handle timeout:', err);
     }
-  };
+  };  
   
 
   const startInterview = async (values: any) => {
@@ -155,20 +155,24 @@ export default function InterviewPage() {
     }
   };
 
-  const sendAnswer = async () => {
-    if (!answer) return;
+  const sendAnswer = async (submittedAnswer?: string) => {
+    const finalAnswer = submittedAnswer ?? answer;
+  
+    if (!finalAnswer.trim()) return;    
+  
     setLoading(true);
     try {
       const res = await fetch(`${backendUrl}/api/v1/interview-graph/submit-answer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, answer }),
+        body: JSON.stringify({ sessionId, answer: finalAnswer }),
       });
-
+  
       const data = await res.json();
-      setMessages(prev => [...prev, `You: ${answer}`]);
+      setMessages(prev => [...prev, `You: ${finalAnswer}`]);
       setAnswer('');
-
+      answerRef.current = '';
+  
       const payload = data?.new_state?.questionPayload;
       if (payload) {
         handleNewPayload(payload, data.feedback);
@@ -183,29 +187,6 @@ export default function InterviewPage() {
       console.error(err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const acknowledgeHint = async () => {
-    try {
-      const res = await fetch(`${backendUrl}/api/v1/interview-graph/acknowledge-hint`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId }),
-      });
-  
-      const data = await res.json();
-      const payload = data?.new_state?.questionPayload;
-  
-      if (payload) {
-        handleNewPayload(payload, data.feedback);
-      }
-  
-      setAwaitingHintAck(false);
-      setHint(null);
-    } catch (err) {
-      console.error('Failed to acknowledge hint:', err);
-      message.error('Could not acknowledge hint.');
     }
   };  
 
@@ -243,6 +224,27 @@ export default function InterviewPage() {
     return () => clearInterval(interval);
   }, [sessionId, lastReceived, interviewComplete]);
 
+  const endInterviewManually = async () => {
+    stopInterviewTimer();
+  
+    try {
+      const res = await fetch(`${backendUrl}/api/v1/interview-graph/end-interview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+      });
+  
+      const result = await res.json();
+      const data = result?.data;
+  
+      if (data) {
+        handleNewPayload(data.questionPayload || {}, data.feedback || '');
+      }
+    } catch (err) {
+      console.error('Failed to end interview manually:', err);
+      setMessages(prev => [...prev, '⚠️ Failed to end interview.']);
+    }
+  };   
 
 
   return (
@@ -251,9 +253,20 @@ export default function InterviewPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>Start AI Interview</span>
           {sessionId && (
-            <span style={{ fontSize: '0.9rem', color: '#555' }}>
-              🕒 {Math.floor(interviewTimer / 60)}m {interviewTimer % 60}s
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: '0.9rem', color: '#555' }}>
+                🕒 {Math.floor(interviewTimer / 60)}m {interviewTimer % 60}s
+              </span>
+              {!interviewComplete && (
+                <Button
+                  type="primary"
+                  danger
+                  onClick={endInterviewManually}
+                >
+                  End Interview
+                </Button>             
+              )}
+            </div>          
           )}
         </div>
       }
@@ -275,7 +288,11 @@ export default function InterviewPage() {
             <Input type="number" />
           </Form.Item>
           <Form.Item>
-            <Button type="primary" htmlType="submit" loading={loading}>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={loading}
+            >
               Start Interview
             </Button>
           </Form.Item>
@@ -294,21 +311,7 @@ export default function InterviewPage() {
             {messages.map((msg, index) => (
               <div key={index} style={{ marginBottom: 8 }}>{msg}</div>
             ))}
-            {awaitingHintAck && hint && (
-              <div style={{
-                backgroundColor: '#fffbe6',
-                border: '1px solid #ffe58f',
-                borderRadius: 4,
-                padding: '1rem',
-                marginBottom: '1rem'
-              }}>
-                <strong>💡 Hint:</strong> {hint}
-                <br />
-                <Button type="dashed" onClick={acknowledgeHint} style={{ marginTop: '0.5rem' }}>
-                  Got it
-                </Button>
-              </div>
-            )}
+
             {interviewComplete && feedback && (
               <div style={{ marginTop: 20, padding: 10, background: '#e6f7ff', border: '1px solid #91d5ff', borderRadius: 4 }}>
                 <strong>📝 Feedback:</strong>
@@ -326,9 +329,20 @@ export default function InterviewPage() {
           <Input.TextArea
             value={answer}
             rows={2}
-            onChange={(e) => setAnswer(e.target.value)}
-            placeholder="Type your answer..."
+            onChange={(e) => {
+              setAnswer(e.target.value);
+              answerRef.current = e.target.value;
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault(); 
+                sendAnswer();    
+              }
+            }}
+            placeholder={interviewComplete ? "Interview is over." : "Type your answer..."}
+            disabled={interviewComplete}
           />
+
           <Button
             type="primary"
             onClick={sendAnswer}
@@ -336,7 +350,7 @@ export default function InterviewPage() {
             style={{ marginTop: 10 }}
             loading={loading}
           >
-            Send Answer
+            Submit Answer
           </Button>
         </>
       )}

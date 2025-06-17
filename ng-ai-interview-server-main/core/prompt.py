@@ -1,50 +1,31 @@
 from langchain.prompts import PromptTemplate
 
 # Question Prompt
-# question_prompt = PromptTemplate(
-#     input_variables=["role", "level"],
-#     template="""
-#         You are an AI interviewer. Ask a technical question for a {role} role at {level} level. 
-#         The question must:
-#         - Be appropriate for the {level} level.
-#         - Increase in complexity, depth, and real-world application as the level goes from entry to senior.
-#         - Be specific to the practical responsibilities typically expected at that level.
-
-#         Respond strictly in the following JSON format (with proper double quotes and valid JSON):
-#         {{
-#             "acknowledgement": "<short message to start the interview or appreciate previous answer>",
-#             "question": "<Your question here>",
-#             "estimatedTime": {{
-#                 "minutes": <number of minutes>,
-#                 "seconds": <number of seconds>
-#             }}  
-#         }}
-#     """
-# )
-
 question_prompt = PromptTemplate(
-    input_variables=["role", "level"],
+    input_variables=["role", "level", "previous_question", "previous_answer"],
     template="""
-        You are an AI interviewer. Your task is to ask ONE technical interview question for the role of {role} at the {level} level.
+        You are an AI interviewer. Ask a technical question for a {role} role at {level} level.
 
-        Guidelines:
-        - Make the question strictly relevant to the {level} level responsibilities.
-        - Only one question should be generated.
-        - DO NOT generate questions for other levels.
-        - The response MUST be a single valid JSON object and nothing else — no explanation, no extra text.
+        The candidate was previously asked:
+        "{previous_question}"
 
-        Return strictly in this exact JSON format (with proper double quotes and valid syntax):
+        They responded:
+        "{previous_answer}"
 
+        Based on the above:
+        - Begin with a short, genuine acknowledgement (appreciate or critique their previous response).
+        - Then ask the next relevant question, building logically from the previous one.
+        - Ensure the complexity is suitable for the {level} level.
+
+        Respond strictly in the following JSON format (with proper double quotes and valid JSON):
         {{
-        "acknowledgement": "<Short transition line or appreciation>",
-        "question": "<Your question here>",
+            "acknowledgement": "<brief response to the candidate's previous answer>",
+            "question": "<your next question>",
             "estimatedTime": {{
                 "minutes": <number>,
                 "seconds": <number>
             }}
         }}
-
-        Do not include any extra text, explanation, or multiple JSON objects.
     """
 )
 
@@ -66,16 +47,22 @@ hint_prompt = PromptTemplate(
 feedback_prompt = PromptTemplate(
     input_variables=["history"],
     template="""
-        You are an AI feedback generator. The following is a series of interview questions and the candidate's answers.
+        You are an AI feedback generator.
+
+        Below is a series of interview questions and answers:
         {history}
 
-        Based on the entire conversation above, provide comprehensive feedback to the candidate and make it short:
+        Your task:
+        - Analyze the overall responses.
+        - Output only valid JSON.
+        - Do not include any explanations, introductions, or code formatting.
+
+        Return strictly and only the following JSON object:
+
         {{
-        "strengths": "<Highlight what the candidate did well across their responses>",
-
-        "communication": "<Evaluate their confidence, clarity, and communication style>",
-
-        "suggestions": "<Provide final suggestions to help them perform better in future interviews>"
+        "strengths": "One short paragraph highlighting strengths.",
+        "communication": "One short paragraph evaluating communication.",
+        "suggestions": "One short paragraph giving suggestions for improvement."
         }}
     """
 )
@@ -96,7 +83,7 @@ timeout_decision_prompt = PromptTemplate(
 
         Based on this, choose the most appropriate next step:
         - "give_hint" — if the candidate may benefit from a small clue.
-        - "carry_on_answering" — if the answer seems partially complete or the candidate just needs more time.
+        - "continue_answering" — if the answer seems partially complete or the candidate just needs more time.
         - "stop_answering" — if it's best to move on to the next question.
 
         Respond with **only one word** (no explanation or formatting):
