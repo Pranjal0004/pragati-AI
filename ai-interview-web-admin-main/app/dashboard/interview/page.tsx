@@ -7,7 +7,6 @@ export default function InterviewPage() {
   const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
   const [form] = Form.useForm();
   const [sessionId, setSessionId] = useState('');
-  const [messages, setMessages] = useState<string[]>([]);
   const [answer, setAnswer] = useState('');
   const [loading, setLoading] = useState(false);
   const [latestQuestion, setLatestQuestion] = useState('');
@@ -15,27 +14,35 @@ export default function InterviewPage() {
   const [interviewComplete, setInterviewComplete] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [interviewTimer, setInterviewTimer] = useState(0);
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [estimatedTime, setEstimatedTime] = useState(60);
-  const [timeoutTriggered, setTimeoutTriggered] = useState(false);
+  type FeedbackType = {
+    strengths: string;
+    communication: string;
+    suggestions: string;
+  };
+  const [feedback, setFeedback] = useState<FeedbackType | null>(null);  
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const interviewTimerRef = useRef<NodeJS.Timeout | null>(null);
   const timeoutTriggerRef = useRef(false);
   const lastTimerQuestionRef = useRef<string | null>(null);
   const answerRef = useRef('');
+  const allMessagesRef = useRef<string[]>([]);
+  const [visibleMessages, setVisibleMessages] = useState<string[]>([]);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+
+  const appendMessage = (msg: string) => {
+    allMessagesRef.current.push(msg);
+    setVisibleMessages(prev => [...prev, msg]);
+  };  
 
   const startTimer = (seconds: number, questionId: string) => {
-    // Prevent resetting the timer for the same question
     if (lastTimerQuestionRef.current === questionId) return;
   
-    // Clear previous timer
     if (timerRef.current) clearInterval(timerRef.current);
-  
-    // Update refs and states
+
     lastTimerQuestionRef.current = questionId;
     timeoutTriggerRef.current = false;
-    setTimeoutTriggered(false);
     setTimeLeft(seconds);
   
     timerRef.current = setInterval(() => {
@@ -62,30 +69,26 @@ export default function InterviewPage() {
     lastTimerQuestionRef.current = null;
   };  
 
-  const handleNewPayload = (payload: any, feedbackMsg?: string) => {
+  const handleNewPayload = (payload: any) => {
     const { question, acknowledgement, questionNumber, isComplete, estimatedTime: newTime } = payload;
   
     if (question && question !== lastReceived) {
       const aiMessage = `AI: ${acknowledgement} Q${questionNumber}: ${question}`;
-      setMessages(prev => [...prev, aiMessage]);
+      appendMessage(aiMessage);
       setLatestQuestion(question);
-      setEstimatedTime(newTime || 60);
       setLastReceived(question);
-      setTimeoutTriggered(false);
       startTimer(newTime || 60, `${question}-${questionNumber}`);
-    }   
+    }
   
     if (isComplete) {
       setInterviewComplete(true);
       stopInterviewTimer();
-      if (feedbackMsg) setFeedback(feedbackMsg);
     }
   };  
 
   const triggerTimeout = async () => {
     if (timeoutTriggerRef.current) return; // prevent multiple calls
     timeoutTriggerRef.current = true; // mark as triggered
-    setTimeoutTriggered(true);
   
     try {
       const res = await fetch(`${backendUrl}/api/v1/interview-graph/handle-timeout`, {
@@ -102,8 +105,8 @@ export default function InterviewPage() {
       const data = result?.data;
   
       if (data?.hint) {
-        setMessages(prev => [...prev, `💡 Hint: ${data.hint}`]);
-      }
+        appendMessage(`💡 Hint: ${data.hint}`);
+      }      
 
       message.info({
         content: `🤖 AI made a decision: ${data.decision}`,
@@ -111,14 +114,17 @@ export default function InterviewPage() {
       });
       
       if (data?.decision === 'stop_answering') {
-        await sendAnswer(answerRef.current);
-      }
+        if (!answerRef.current.trim()) {
+          await sendAnswer('[No answer]');
+        } else {
+          await sendAnswer(answerRef.current);
+        }
+      }      
   
     } catch (err) {
       console.error('Failed to handle timeout:', err);
     }
   };  
-  
 
   const startInterview = async (values: any) => {
     setLoading(true);
@@ -135,7 +141,8 @@ export default function InterviewPage() {
 
       const data = await res.json();
       setSessionId(data.sessionId);
-      setMessages(data.messages || []);
+      allMessagesRef.current = data.messages || [];
+      setVisibleMessages(data.messages || []);
       setInterviewTimer(0);
 
       if (interviewTimerRef.current) clearInterval(interviewTimerRef.current);
@@ -155,10 +162,13 @@ export default function InterviewPage() {
     }
   };
 
-  const sendAnswer = async (submittedAnswer?: string) => {
+  const sendAnswer = async (submittedAnswer?: string, forceProceed = false) => {
     const finalAnswer = submittedAnswer ?? answer;
   
-    if (!finalAnswer.trim()) return;    
+    if (!finalAnswer.trim()) {
+      if (submittedAnswer === '[No answer]') return; 
+      return await sendAnswer('[No answer]');
+    }    
   
     setLoading(true);
     try {
@@ -169,26 +179,25 @@ export default function InterviewPage() {
       });
   
       const data = await res.json();
-      setMessages(prev => [...prev, `You: ${finalAnswer}`]);
+  
+      if (finalAnswer.trim()) {
+        appendMessage(`You: ${finalAnswer}`);
+      } else if (forceProceed) {
+        appendMessage(`You: [No answer submitted]`);
+      }
+  
       setAnswer('');
       answerRef.current = '';
   
       const payload = data?.new_state?.questionPayload;
-      if (payload) {
-        handleNewPayload(payload, data.feedback);
-      } else {
-        setMessages(prev => [...prev, '✅ Interview complete.']);
-        setInterviewComplete(true);
-        stopInterviewTimer();
-        if (data.feedback) setFeedback(data.feedback);
-      }
+      if (payload) handleNewPayload(payload);
     } catch (err) {
       message.error('Error submitting answer');
       console.error(err);
     } finally {
       setLoading(false);
     }
-  };  
+  };   
 
   useEffect(() => {
     if (!sessionId || interviewComplete) return;
@@ -199,13 +208,20 @@ export default function InterviewPage() {
         const data = await res.json();
 
         if (data?.isComplete) {
-          setMessages(prev => [...prev, `AI: ${data.acknowledgement}`]);
+          appendMessage(`AI: ${data.acknowledgement}`);
           setInterviewComplete(true);
           setLatestQuestion('');
           setLastReceived('');
           setTimeLeft(null);
           stopInterviewTimer();
-          if (data.feedback) setFeedback(data.feedback);
+          if (data.feedback) {
+            const parsedFeedback =
+              typeof data.feedback === 'string'
+                ? JSON.parse(data.feedback)
+                : data.feedback;
+          
+            setFeedback(parsedFeedback);
+          }          
         } else if (data?.question && data.question !== lastReceived) {
           const payload = {
             question: data.question,
@@ -214,7 +230,7 @@ export default function InterviewPage() {
             estimatedTime: data.estimatedTime,
             isComplete: false,
           };
-          handleNewPayload(payload, data.feedback);
+          handleNewPayload(payload);
         }
       } catch (err) {
         console.error('Polling failed', err);
@@ -238,13 +254,19 @@ export default function InterviewPage() {
       const data = result?.data;
   
       if (data) {
-        handleNewPayload(data.questionPayload || {}, data.feedback || '');
+        handleNewPayload(data.questionPayload || {});
       }
     } catch (err) {
       console.error('Failed to end interview manually:', err);
-      setMessages(prev => [...prev, '⚠️ Failed to end interview.']);
     }
   };   
+
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollTop = messagesEndRef.current.scrollHeight;
+    }
+  }, [visibleMessages]);
+  
 
 
   return (
@@ -300,22 +322,80 @@ export default function InterviewPage() {
       ) : (
         <>
           <div
+            ref={messagesEndRef}
             style={{
               border: '1px solid #ccc',
               padding: '1rem',
               marginBottom: '1rem',
               minHeight: 200,
+              maxHeight: 300,
+              overflowY: 'auto',
               background: '#f7f7f7',
+              display: 'flex',
+              flexDirection: 'column',
             }}
           >
-            {messages.map((msg, index) => (
-              <div key={index} style={{ marginBottom: 8 }}>{msg}</div>
-            ))}
+            {visibleMessages.map((msg, index) => {
+              const isUser = msg.startsWith('You:');
+              const isHint = msg.startsWith('💡 Hint:');
+              const isAI = msg.startsWith('AI:');
+              const isQuestion = isAI && /Q\d+:/.test(msg);
+
+              return (
+                <div
+                  key={index}
+                  style={{
+                    marginBottom: 8,
+                    padding: '10px 14px',
+                    borderRadius: 8,
+                    backgroundColor: isUser
+                      ? '#d9f7be'
+                      : isHint
+                      ? '#fffbe6'
+                      : isQuestion
+                      ? '#f0f5ff'
+                      : isAI
+                      ? '#e6f7ff'
+                      : '#f5f5f5',
+                    border: isHint
+                      ? '1px dashed #faad14'
+                      : isQuestion
+                      ? '1px solid #adc6ff'
+                      : 'none',
+                    fontStyle: isHint ? 'italic' : 'normal',
+                    color: isHint ? '#ad8b00' : 'inherit',
+                    whiteSpace: 'pre-wrap',
+                    width: 'fit-content',
+                    maxWidth: '100%',
+                    alignSelf: isUser ? 'flex-end' : 'flex-start',
+                  }}
+                >
+                  {isUser && <strong>You:</strong>}
+                  {isHint && <strong>💡 Hint:</strong>}
+                  {isQuestion && <strong>🤖 Question:</strong>}
+                  {isAI && !isQuestion && <strong>🤖 AI:</strong>}
+                  {!isUser && !isHint && !isAI && <strong>Info:</strong>}{' '}
+                  {msg.replace(/^(You:|AI:|💡 Hint:)/, '').trim()}
+                </div>
+              );
+            })}
 
             {interviewComplete && feedback && (
-              <div style={{ marginTop: 20, padding: 10, background: '#e6f7ff', border: '1px solid #91d5ff', borderRadius: 4 }}>
+              <div
+                style={{
+                  marginTop: 20,
+                  padding: 10,
+                  background: '#e6f7ff',
+                  border: '1px solid #91d5ff',
+                  borderRadius: 4,
+                }}
+              >
                 <strong>📝 Feedback:</strong>
-                <div>{feedback}</div>
+                <div style={{ marginTop: 8 }}>
+                  <p><strong>Strengths:</strong> {feedback.strengths}</p>
+                  <p><strong>Communication:</strong> {feedback.communication}</p>
+                  <p><strong>Suggestions:</strong> {feedback.suggestions}</p>
+                </div>
               </div>
             )}
           </div>
@@ -345,8 +425,8 @@ export default function InterviewPage() {
 
           <Button
             type="primary"
-            onClick={sendAnswer}
-            disabled={!answer}
+            onClick={() => sendAnswer()}
+            disabled={!answer.trim()}
             style={{ marginTop: 10 }}
             loading={loading}
           >

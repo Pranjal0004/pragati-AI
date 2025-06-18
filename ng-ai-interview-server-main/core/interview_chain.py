@@ -2,6 +2,7 @@
 
 from core.krutrim_client import get_krutrim_response
 from core.prompt import question_prompt, hint_prompt, feedback_prompt, timeout_decision_prompt
+import json
 
 
 class QuestionChain:
@@ -40,9 +41,25 @@ class HintChain:
 class FeedbackChain:
     @staticmethod
     def run(history):
+        if not history.strip():
+            return {
+                "strengths": "Since no answers were given, strengths cannot be evaluated. However, showing up is a good start!",
+                "communication": "No communication was observed in the session. We recommend participating to help us evaluate you better.",
+                "suggestions": "Please try answering the questions next time so we can give meaningful feedback on your strengths and areas to improve."
+            }
+
         formatted_prompt = feedback_prompt.format(history=history)
         messages = [{"role": "user", "content": formatted_prompt}]
-        return get_krutrim_response(messages).strip()
+        response = get_krutrim_response(messages).strip()
+
+        try:
+            return json.loads(response) 
+        except json.JSONDecodeError:
+            return {
+                "strengths": "Could not parse strengths from response.",
+                "communication": "Could not parse communication feedback.",
+                "suggestions": "Please try again later."
+            }
 
 
 class TimeoutDecisionChain:

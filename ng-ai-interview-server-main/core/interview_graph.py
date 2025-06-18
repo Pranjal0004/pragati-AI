@@ -158,7 +158,7 @@ def handle_timeout(state):
         partial_answer=partial_answer,
         history=state["history"]
     )
-    # decision = "continue_answering"
+    # decision = "stop_answering"
     print("Decision:", decision)
     return {**state, "next": decision, "decision": decision}
 
