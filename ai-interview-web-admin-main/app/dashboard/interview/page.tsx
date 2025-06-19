@@ -108,10 +108,10 @@ export default function InterviewPage() {
         appendMessage(`💡 Hint: ${data.hint}`);
       }      
 
-      message.info({
-        content: `🤖 AI made a decision: ${data.decision}`,
-        duration: 4,
-      });
+      // message.info({
+      //   content: `🤖 AI made a decision: ${data.decision}`,
+      //   duration: 4,
+      // });
       
       if (data?.decision === 'stop_answering') {
         if (!answerRef.current.trim()) {
